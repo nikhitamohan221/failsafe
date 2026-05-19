@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
@@ -5,6 +6,7 @@ import FacultyDashboard from './pages/FacultyDashboard';
 import HODDashboard from './pages/HODDashboard';
 import StudentDetail from './pages/StudentDetail';
 import StudentProfile from './pages/StudentProfile';
+import UploadPage from './pages/UploadPage';
 import Navbar from './components/Navbar';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -56,6 +58,12 @@ function App() {
         <Route path="/my-profile" element={
           <ProtectedRoute allowedRoles={['student']}>
             <AppLayout><StudentProfile /></AppLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/upload" element={
+          <ProtectedRoute allowedRoles={['faculty', 'hod']}>
+            <AppLayout><UploadPage /></AppLayout>
           </ProtectedRoute>
         } />
       </Routes>
