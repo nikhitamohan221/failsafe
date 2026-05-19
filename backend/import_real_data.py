@@ -107,7 +107,22 @@ def seed():
         roll_no = f"{dept[:2].upper()}{200+i}"
         student = models.Student(
             user_id=user.id, roll_no=roll_no,
-            department=dept, semester=random.randint(2, 8), cgpa=cgpa
+            department=dept, semester=random.randint(2, 8), cgpa=cgpa,
+            g1=float(row.get('G1', 0)),
+            g2=float(row.get('G2', 0)),
+            absences=int(row.get('absences', 0)),
+            failures=int(row.get('failures', 0)),
+            studytime=int(row.get('studytime', 2)),
+            medu=int(row.get('Medu', 2)),
+            fedu=int(row.get('Fedu', 2)),
+            goout=int(row.get('goout', 3)),
+            dalc=int(row.get('Dalc', 1)),
+            walc=int(row.get('Walc', 1)),
+            health=int(row.get('health', 3)),
+            famrel=int(row.get('famrel', 3)),
+            freetime=int(row.get('freetime', 3)),
+            traveltime=int(row.get('traveltime', 1)),
+            age=int(row.get('age', 17)),
         )
         db.add(student)
         db.commit()

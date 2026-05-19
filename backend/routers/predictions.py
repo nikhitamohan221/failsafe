@@ -15,21 +15,21 @@ def predict_student(student_id: int, db: Session = Depends(database.get_db), cur
         raise HTTPException(status_code=404, detail="Student not found")
 
     data = {
-        "G1":         getattr(student, "g1", 0) or 0,
-        "G2":         getattr(student, "g2", 0) or 0,
-        "absences":   getattr(student, "absences", 0) or 0,
-        "failures":   getattr(student, "failures", 0) or 0,
-        "studytime":  getattr(student, "studytime", 2) or 2,
-        "Medu":       getattr(student, "medu", 2) or 2,
-        "Fedu":       getattr(student, "fedu", 2) or 2,
-        "goout":      getattr(student, "goout", 3) or 3,
-        "Dalc":       getattr(student, "dalc", 1) or 1,
-        "Walc":       getattr(student, "walc", 1) or 1,
-        "health":     getattr(student, "health", 3) or 3,
-        "famrel":     getattr(student, "famrel", 3) or 3,
-        "freetime":   getattr(student, "freetime", 3) or 3,
-        "traveltime": getattr(student, "traveltime", 1) or 1,
-        "age":        getattr(student, "age", 17) or 17,
+        "G1":         float(student.g1 or 0),
+        "G2":         float(student.g2 or 0),
+        "absences":   int(student.absences or 0),
+        "failures":   int(student.failures or 0),
+        "studytime":  int(student.studytime or 2),
+        "Medu":       int(student.medu or 2),
+        "Fedu":       int(student.fedu or 2),
+        "goout":      int(student.goout or 3),
+        "Dalc":       int(student.dalc or 1),
+        "Walc":       int(student.walc or 1),
+        "health":     int(student.health or 3),
+        "famrel":     int(student.famrel or 3),
+        "freetime":   int(student.freetime or 3),
+        "traveltime": int(student.traveltime or 1),
+        "age":        int(student.age or 17),
     }
 
     result = prediction_service.predict_risk(data)
