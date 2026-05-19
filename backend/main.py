@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import models
-import threading
 from database import engine, SessionLocal
 from routers import auth, students, predictions, interventions, dashboard
 
@@ -10,18 +9,15 @@ models.Base.metadata.create_all(bind=engine)
 
 def auto_seed():
     db = SessionLocal()
-    try:
-        if db.query(models.User).count() <= 2:
-            try:
-                import import_real_data
-                import_real_data.seed()
-            except Exception as e:
-                print(f"Seed error: {e}")
-    finally:
-        db.close()
+    if db.query(models.User).count() <= 2:
+        try:
+            import import_real_data
+            import_real_data.seed()
+        except Exception as e:
+            print(f"Seed error: {e}")
+    db.close()
 
-# Run in background so it doesn't block startup
-threading.Thread(target=auto_seed, daemon=True).start()
+auto_seed()
 
 app = FastAPI(
     title="FAILSAFE API",
@@ -46,7 +42,3 @@ app.include_router(dashboard.router)
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the FAILSAFE API"}
-
-if __name__ == "__main__":
-    import uvicorn, os
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))

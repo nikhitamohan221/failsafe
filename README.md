@@ -36,7 +36,7 @@ The system analyzes student-related academic data and predicts the likelihood of
 * Predictive modeling
 * Explainability using SHAP
 
-
+---
 
 # Project Structure
 

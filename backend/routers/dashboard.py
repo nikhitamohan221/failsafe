@@ -1,102 +1,104 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import func
 import models, schemas, auth, database
-import sys, os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from ml_model import prediction_service
+from datetime import datetime, timedelta
 
-router = APIRouter(prefix="/predict", tags=["predictions"])
+router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
-@router.post("/{student_id}", response_model=schemas.PredictionResponse)
-def predict_student(student_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_role(["faculty", "hod"]))):
-    student = db.query(models.Student).filter(models.Student.id == student_id).first()
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+@router.get("/faculty")
+def faculty_dashboard(db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_role(["faculty", "hod"]))):
+    # Get latest predictions for all students
+    subquery = db.query(
+        models.Prediction.student_id,
+        func.max(models.Prediction.predicted_on).label('latest_prediction')
+    ).group_by(models.Prediction.student_id).subquery()
 
-    data = {
-        "G1":         float(student.g1 or 0),
-        "G2":         float(student.g2 or 0),
-        "absences":   int(student.absences or 0),
-        "failures":   int(student.failures or 0),
-        "studytime":  int(student.studytime or 2),
-        "Medu":       int(student.medu or 2),
-        "Fedu":       int(student.fedu or 2),
-        "goout":      int(student.goout or 3),
-        "Dalc":       int(student.dalc or 1),
-        "Walc":       int(student.walc or 1),
-        "health":     int(student.health or 3),
-        "famrel":     int(student.famrel or 3),
-        "freetime":   int(student.freetime or 3),
-        "traveltime": int(student.traveltime or 1),
-        "age":        int(student.age or 17),
+    latest_preds = db.query(models.Prediction).join(
+        subquery,
+        (models.Prediction.student_id == subquery.c.student_id) &
+        (models.Prediction.predicted_on == subquery.c.latest_prediction)
+    ).all()
+
+    stats = {
+        "total_students": db.query(models.Student).count(),
+        "high_risk": len([p for p in latest_preds if p.risk_label == 'High']),
+        "medium_risk": len([p for p in latest_preds if p.risk_label == 'Medium']),
+        "low_risk": len([p for p in latest_preds if p.risk_label == 'Low']),
     }
+    
+    # Enrich with student details
+    flagged_students = []
+    for p in latest_preds:
+        student = db.query(models.Student).filter(models.Student.id == p.student_id).first()
+        user = db.query(models.User).filter(models.User.id == student.user_id).first()
+        flagged_students.append({
+            "student_id": student.id,
+            "name": user.name,
+            "roll_no": student.roll_no,
+            "department": student.department,
+            "semester": student.semester,
+            "risk_score": p.risk_score,
+            "risk_label": p.risk_label
+        })
 
-    result = prediction_service.predict_risk(data)
+    return {"stats": stats, "students": flagged_students}
 
-    if "error" in result:
-        raise HTTPException(status_code=500, detail=result["error"])
+@router.get("/hod")
+def hod_dashboard(db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_role(["hod"]))):
+    # Time series of risk levels
+    # Simply get all predictions and group by date for trends
+    predictions = db.query(models.Prediction).all()
+    
+    trends = {}
+    for p in predictions:
+        date_str = p.predicted_on.strftime("%Y-%m-%d")
+        if date_str not in trends:
+            trends[date_str] = {"High": 0, "Medium": 0, "Low": 0}
+        trends[date_str][p.risk_label] += 1
+        
+    trend_list = [{"date": k, **v} for k, v in trends.items()]
+    trend_list.sort(key=lambda x: x["date"])
 
-    prediction = models.Prediction(
-        student_id=student_id,
-        risk_score=result["risk_score"],
-        risk_label=result["risk_label"],
-        shap_values=str(result["shap_values"])
-    )
-    db.add(prediction)
-    db.commit()
-    db.refresh(prediction)
-    return prediction
+    stats = {
+        "critical_cases": sum(1 for p in predictions if p.risk_label == "High"),
+        "total_interventions": db.query(models.Intervention).count(),
+        "completed_interventions": db.query(models.Intervention).filter(models.Intervention.status == "complete").count()
+    }
+    return {"trends": trend_list, "stats": stats}
 
-
-@router.post("/batch")
-def predict_batch(db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.require_role(["faculty", "hod"]))):
-    students = db.query(models.Student).all()
-    count = 0
-    errors = 0
-    for student in students:
-        try:
-            data = {
-                "G1":         float(student.g1 or 0),
-                "G2":         float(student.g2 or 0),
-                "absences":   int(student.absences or 0),
-                "failures":   int(student.failures or 0),
-                "studytime":  int(student.studytime or 2),
-                "Medu":       int(student.medu or 2),
-                "Fedu":       int(student.fedu or 2),
-                "goout":      int(student.goout or 3),
-                "Dalc":       int(student.dalc or 1),
-                "Walc":       int(student.walc or 1),
-                "health":     int(student.health or 3),
-                "famrel":     int(student.famrel or 3),
-                "freetime":   int(student.freetime or 3),
-                "traveltime": int(student.traveltime or 1),
-                "age":        int(student.age or 17),
-            }
-            result = prediction_service.predict_risk(data)
-            prediction = models.Prediction(
-                student_id=student.id,
-                risk_score=result["risk_score"],
-                risk_label=result["risk_label"],
-                shap_values=str(result["shap_values"])
-            )
-            db.add(prediction)
-            count += 1
-        except Exception as e:
-            errors += 1
-            print(f"Batch prediction error for student {student.id}: {e}")
-    db.commit()
-    return {"message": f"Ran predictions for {count} students. Errors: {errors}"}
-
-
-@router.get("/{student_id}/history", response_model=List[schemas.PredictionResponse])
-def get_prediction_history(student_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
+@router.get("/student/{student_id}")
+def student_dashboard(student_id: int, db: Session = Depends(database.get_db), current_user: models.User = Depends(auth.get_current_user)):
     if current_user.role == "student":
         student_record = db.query(models.Student).filter(models.Student.user_id == current_user.id).first()
         if not student_record or student_record.id != student_id:
             raise HTTPException(status_code=403, detail="Not authorized")
-
-    predictions = db.query(models.Prediction).filter(
-        models.Prediction.student_id == student_id
-    ).order_by(models.Prediction.predicted_on.desc()).all()
-    return predictions
+            
+    student = db.query(models.Student).filter(models.Student.id == student_id).first()
+    latest_pred = db.query(models.Prediction).filter(models.Prediction.student_id == student_id).order_by(models.Prediction.predicted_on.desc()).first()
+    interventions = db.query(models.Intervention).filter(models.Intervention.student_id == student_id).all()
+    
+    # SHAP explanation string generated at prediction time or dynamically
+    from ml_model import prediction_service
+    explanation = "No predictions yet."
+    if latest_pred and latest_pred.shap_values:
+        top_factors = sorted(latest_pred.shap_values.items(), key=lambda x: abs(x[1]), reverse=True)[:3]
+        explanation = "Top risk factors: " + ", ".join([f[0] for f in top_factors])
+    return {
+        "student": {
+            "roll_no": student.roll_no,
+            "department": student.department,
+            "semester": student.semester,
+            "cgpa": student.cgpa
+        },
+        "latest_prediction": latest_pred,
+        "explanation": explanation,
+        "interventions": [
+            {
+                "id": i.id,
+                "type": i.type,
+                "description": i.description,
+                "status": i.status
+            } for i in interventions
+        ]
+    }

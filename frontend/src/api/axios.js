@@ -38,16 +38,6 @@ export const studentAPI = {
   getHistory: async (studentId) => {
     const res = await api.get(`/predict/${studentId}/history`);
     return res.data;
-  },
-  uploadCSV: async (file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await api.post('/students/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-    return res.data;
   }
 };
 

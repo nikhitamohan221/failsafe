@@ -9,7 +9,7 @@ class User(Base):
     name = Column(String, index=True)
     email = Column(String, unique=True, index=True)
     password_hash = Column(String)
-    role = Column(String)
+    role = Column(String) # student, faculty, hod
 
 class Student(Base):
     __tablename__ = "students"
@@ -19,23 +19,7 @@ class Student(Base):
     department = Column(String, index=True)
     semester = Column(Integer)
     cgpa = Column(Float)
-    # New columns for XGBoost model
-    g1 = Column(Float, default=0)
-    g2 = Column(Float, default=0)
-    absences = Column(Integer, default=0)
-    failures = Column(Integer, default=0)
-    studytime = Column(Integer, default=2)
-    medu = Column(Integer, default=2)
-    fedu = Column(Integer, default=2)
-    goout = Column(Integer, default=3)
-    dalc = Column(Integer, default=1)
-    walc = Column(Integer, default=1)
-    health = Column(Integer, default=3)
-    famrel = Column(Integer, default=3)
-    freetime = Column(Integer, default=3)
-    traveltime = Column(Integer, default=1)
-    age = Column(Integer, default=17)
-
+    
     user = relationship("User")
 
 class Attendance(Base):
@@ -59,9 +43,9 @@ class Prediction(Base):
     id = Column(Integer, primary_key=True, index=True)
     student_id = Column(Integer, ForeignKey("students.id"))
     risk_score = Column(Float)
-    risk_label = Column(String)
+    risk_label = Column(String) # High, Medium, Low
     predicted_on = Column(DateTime, default=datetime.utcnow)
-    shap_values = Column(JSON)
+    shap_values = Column(JSON) # Store as JSON string or JSON type
 
 class Intervention(Base):
     __tablename__ = "interventions"
@@ -70,4 +54,4 @@ class Intervention(Base):
     type = Column(String)
     description = Column(String)
     assigned_by = Column(Integer, ForeignKey("users.id"))
-    status = Column(String)
+    status = Column(String) # assigned, in_progress, complete
